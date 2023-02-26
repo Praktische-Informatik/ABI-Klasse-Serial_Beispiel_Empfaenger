@@ -1,4 +1,4 @@
-# ABI-Klasse-Serial_Beispiel_Sender
+# ABI-Klasse-Serial_Beispiel_Empfaenger
 
 Es wird benötigt:<br> 
 - Gitprojekt: ABI-Klasse-Serial_Beispiel_Sender<br>
