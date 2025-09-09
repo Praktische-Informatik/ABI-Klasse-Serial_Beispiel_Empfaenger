@@ -1,60 +1,75 @@
 /*
-Es wird ein virtueles Port Tool benoetigt! Zum Beispiel HHD Virtual Serial Port Tool
+  EMPFÄNGER (Receiver)
+
+  Voraussetzungen:
+    - Ein virtuelles COM-Port-Paar (z. B. mit HHD Virtual Serial Port Tool).
+      Beispiel: COM1 <-> COM2, wobei der SENDER auf COM1, der EMPFÄNGER auf COM2 liegt.
+
+  Wichtige Hinweise:
+    - Diese Beispiel-„main“ nutzt eine Serial-Klasse (Header liegt im Projekt unter Serial/Serial.h).
+    - In unserer empfohlenen Serial-Implementierung sind Lese-Operationen NICHT blockierend:
+        read()  -> gibt -1 zurück, wenn aktuell kein Byte vorliegt
+        readLine() -> gibt die bis dahin gelesenen Zeichen zurück, wenn noch kein '\n' kam
+    - Handshake: Der Empfänger setzt DTR=true, der Sender sieht das als DSR=true.
 */
 
-#include "Serial/Serial.h" // Beachte! Die Klasse Serial.h ist im Ordner Serial/Serial -> Siehe VS Projekt Ordner.
+#include "Serial/Serial.h"   // Serial-Klasse liegt im Ordner Serial/Serial  (siehe VS-Projektordner)
 #include <iostream>
 using namespace std;
 
-// Übertragungs-Steuerzeichen
-char ETX = 0x03; // End of Text (Ende eines Datenblocks);
-char ACK = 0x06; // Acknowledge (fehlerfreie Übertragung);
-char NAK = 0x15; // No Acknowledge (fehlerhafte Übertragung);
+// Übertragungs-Steuerzeichen (für spätere Protokoll-Erweiterungen nützlich)
+char ETX = 0x03; // End of Text (Ende eines Datenblocks)
+char ACK = 0x06; // Acknowledge (fehlerfreie Übertragung)
+char NAK = 0x15; // No Acknowledge (fehlerhafte Übertragung)
 char SOH = 0x01; // Start of Heading (Start eines Blockes)
-char EOT = 0x04;  // End of Transmission (Ende der Übertragung);
-char CAN = 0x18;  //Cancel (Abbruch der Übertragung);Medium
-
-/************
-* EMPFÄNGER
-*************/
+char EOT = 0x04; // End of Transmission (Ende der Übertragung)
+char CAN = 0x18; // Cancel (Abbruch der Übertragung)
 
 int main()
 {
+    // COM-Port-Nummer: hier zur Demo fest verdrahtet (statt cin >> port_nr)
+    string port_nr = "2";   // Beispiel: Empfänger auf COM2
+    cout << "COM Port Nummer (Empfaenger): " << port_nr << endl;
 
-	string port_nr = "";
-	cout << "COM Port Nummer: ";
+    // "COM" + Nummer ergibt den Portnamen (z. B. "COM2")
+    string serieller_port("COM");
+    serieller_port += port_nr;
 
-	//cin >> port_nr;
-	port_nr = "2";
+    Serial* com = new Serial((string)serieller_port, 9600, 8, ONESTOPBIT, NOPARITY);
 
-	string serieller_port("COM");
-	serieller_port += port_nr;
+    if (!com->open()) {
+        cout << "Schnittstelle Empfaenger konnte NICHT geoeffnet werden. Programmabbruch!" << endl;
+        return -1;
+    }
+    cout << "Schnittstelle Empfaenger geoeffnet" << endl;
 
-	Serial* com1 = new Serial((string)serieller_port, 9600, 8, NOPARITY, ONESTOPBIT);
+    // Signalisiere mit DTR=true, dass der Empfänger bereit ist.
+    // (HHD setzt DTR oft automatisch auf true; hier dennoch explizit.)
+    cout << "Stelle DTR auf true, um Empfangsbereitschaft zu signalisieren." << endl;
+    com->setDTR(true);
 
-	if (!com1->open()) {
-		cout << "Schnittstelle Empfaenger konnte NICHT geoeffnet werden. Programmabbruch!" << endl;
-		return -1;
-	}
-	cout << "Schnittstelle Empfaenger geoeffnet" << endl;
+    // --- Lese-Beispiele ----------------------------------------------------
+    // Hinweis: read() ist nicht blockierend (siehe Serial-Implementierung). Wenn gerade nichts anliegt, kommt -1.
+    cout << "Lese ein Zeichen (Integer-Wert): " << com->read() << endl; // z. B. 65 für 'A'
 
-	cout << "Stelle DTR auf true, um Enpfangsbereitschaft zu signalisieren." << endl;
-	com1->setDTR(true); // Diese Zeile kann auch auskommentiert werden, da die HHD Software DTR am Anfang immer auf true setzt.
+    // Zeichenketten werden Zeichen für Zeichen gesendet; je nach Timing kommt -1,
+    // wenn noch nichts vorliegt. Beispiele:
+    cout << "Lese ein Zeichen (als Integer): " << com->read() << endl;
+    cout << "Lese ein Zeichen (als char):    " << (char)com->read() << endl;
+    cout << "Lese ein Zeichen (als char):    " << (char)com->read() << endl;
 
-	// read() blockiert bzw. wartet so lange, bis es etwas empfängt. 
-	// es wird ein Binärcode empfangen, hier:  0100 0001, der als Integer interpretiert wird. 
-	cout << "Lese ein Zeichen " << com1->read() << endl; // statt 'A' wird 65 ausgegeben.
+    // readLine(): Liest bis '\n'. Falls noch kein Newline anliegt, gibt sie den
+    // bisherigen Inhalt zurück (nicht-blockierend).
+    cout << "Lese eine Zeile: " << com->readLine() << endl;
 
-	cout << "Lese eine Zeichenkette " << com1->read() << endl;			//Ausgabe: 66 >> Beachte: Es wird Zeichen für Zeichen gesendet.
-	cout << "Lese eine Zeichenkette " << (char)com1->read() << endl;	//Ausgabe: 'a' >> 0100 0010 wird hier als char interpretiert
-	cout << "Lese eine Zeichenkette " << (char)com1->read() << endl;	//Ausgabe: 'a' >> 0100 0010 wird hier als char interpretiert
-	cout << "Lese eine Zeichenkette " << com1->readLine() << endl;		//Ausgabe: "llBall" >> readLine(9 ließt bis zum '\n'. Fehlt dieses, blockiert die Methode.
+    // Puffer-Lese-Beispiel:
+    // Dynamische, uninitialisierte char*-Puffer führen leicht zu Speicherfehlern.
+    // Ein statischer Puffer wie unten ist sicher:
+    char buffer[6] = { 0 };
+    cout << "Wie viele Zeichen wurden gelesen? --> " << com->read(buffer, 6) << endl;
+    cout << "Was wurde gelesen: \"" << buffer << "\"" << endl;
+    // -----------------------------------------------------------------------
 
-	// char* buffer geht nicht! --> Speicherzugriffsverletzung
-	char buffer[6] = {0}; 
-	cout << "Wie viele Zeichen wurden gesendet? --> " << com1->read(buffer, 6) << endl;
-	cout << "Was wurde gesendet: " << buffer << endl;
-	
-	com1->close();
-	return 0;
+    com->close();
+    return 0;
 }
