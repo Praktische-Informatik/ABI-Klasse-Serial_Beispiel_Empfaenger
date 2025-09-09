@@ -1,20 +1,28 @@
 /*
-  EMPFÄNGER (Receiver)
+  EMPFÄNGER (Receiver) 
 
   Voraussetzungen:
     - Ein virtuelles COM-Port-Paar (z. B. mit HHD Virtual Serial Port Tool).
       Beispiel: COM1 <-> COM2, wobei der SENDER auf COM1, der EMPFÄNGER auf COM2 liegt.
 
   Wichtige Hinweise:
-    - Diese Beispiel-„main“ nutzt eine Serial-Klasse (Header liegt im Projekt unter Serial/Serial.h).
-    - In unserer empfohlenen Serial-Implementierung sind Lese-Operationen NICHT blockierend:
-        read()  -> gibt -1 zurück, wenn aktuell kein Byte vorliegt
-        readLine() -> gibt die bis dahin gelesenen Zeichen zurück, wenn noch kein '\n' kam
+    - Diese Beispiel-„main“ nutzt eine Serial-Klasse (Header: Serial/Serial.h).
+    - In dieser Version sind Lese-Operationen KLASSISCH BLOCKIEREND:
+        read()     -> wartet, bis mindestens 1 Byte empfangen wurde (oder Fehler)
+        read(buf,n)-> liest mindestens 1 Byte und anschließend alle sofort verfügbaren Bytes
+        readLine() -> wartet, bis ein '\n' empfangen wurde und liefert die Zeile ohne '\n'
+
     - Handshake: Der Empfänger setzt DTR=true, der Sender sieht das als DSR=true.
+
+  Tipp:
+    - Da read()/readLine() blockieren, kehrt das Programm an diesen Stellen erst zurück,
+      wenn tatsächlich Daten angekommen sind. Wenn gerade niemand sendet, "hängt" es dort
+      absichtlich und verschwendet keine CPU-Zeit – klassisches serielles Verhalten.
 */
 
 #include "Serial/Serial.h"   // Serial-Klasse liegt im Ordner Serial/Serial  (siehe VS-Projektordner)
 #include <iostream>
+#include <cstring>
 using namespace std;
 
 // Übertragungs-Steuerzeichen (für spätere Protokoll-Erweiterungen nützlich)
@@ -48,25 +56,32 @@ int main()
     cout << "Stelle DTR auf true, um Empfangsbereitschaft zu signalisieren." << endl;
     com->setDTR(true);
 
-    // --- Lese-Beispiele ----------------------------------------------------
-    // Hinweis: read() ist nicht blockierend (siehe Serial-Implementierung). Wenn gerade nichts anliegt, kommt -1.
-    cout << "Lese ein Zeichen (Integer-Wert): " << com->read() << endl; // z. B. 65 für 'A'
+    // --- Lese-Beispiele (BLOCKIEREND) ---------------------------------
+    // 1) Ein einzelnes Zeichen lesen (als int). read() wartet, bis 1 Byte da ist.
+    int val = com->read();
+    cout << "Lese ein Zeichen (Integer-Wert): " << val << endl; // z. B. 65 für 'A'
 
-    // Zeichenketten werden Zeichen für Zeichen gesendet; je nach Timing kommt -1,
-    // wenn noch nichts vorliegt. Beispiele:
-    cout << "Lese ein Zeichen (als Integer): " << com->read() << endl;
-    cout << "Lese ein Zeichen (als char):    " << (char)com->read() << endl;
-    cout << "Lese ein Zeichen (als char):    " << (char)com->read() << endl;
+    // 2) Mehrere Einzel-Reads – jede read()-Anweisung blockiert, bis ein Byte ankommt.
+    int v1 = com->read();
+    cout << "Lese ein Zeichen (als Integer): " << v1 << endl;
 
-    // readLine(): Liest bis '\n'. Falls noch kein Newline anliegt, gibt sie den
-    // bisherigen Inhalt zurück (nicht-blockierend).
-    cout << "Lese eine Zeile: " << com->readLine() << endl;
+    int v2 = com->read();
+    cout << "Lese ein Zeichen (als char):    " << (char)v2 << endl;
 
-    // Puffer-Lese-Beispiel:
-    // Dynamische, uninitialisierte char*-Puffer führen leicht zu Speicherfehlern.
-    // Ein statischer Puffer wie unten ist sicher:
+    int v3 = com->read();
+    cout << "Lese ein Zeichen (als char):    " << (char)v3 << endl;
+
+    // 3) Eine komplette Zeile lesen – readLine() kehrt erst mit '\n' zurück.
+    cout << "Warte auf eine komplette Zeile (endet mit LF =\\n)..." << endl;
+    string zeile = com->readLine();
+    cout << "Empfangene Zeile: \"" << zeile << "\"" << endl;
+
+    // 4) Puffer-Lese-Beispiel: Liest mindestens 1 Byte und schnappt dann alles,
+    //    was sofort verfügbar ist (bis zur angegebenen Größe).
     char buffer[6] = { 0 };
-    cout << "Wie viele Zeichen wurden gelesen? --> " << com->read(buffer, 6) << endl;
+    int gelesen = com->read(buffer, 5); //Alternativ: com->read(buffer, (int)sizeof(buffer) - 1); Platz für 0-Terminator lassen
+    buffer[gelesen] = '\0';
+    cout << "Wie viele Zeichen wurden gelesen? --> " << gelesen << endl;
     cout << "Was wurde gelesen: \"" << buffer << "\"" << endl;
     // -----------------------------------------------------------------------
 
