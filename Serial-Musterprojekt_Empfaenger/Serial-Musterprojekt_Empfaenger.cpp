@@ -36,16 +36,16 @@ char CAN = 0x18; // Cancel (Abbruch der Übertragung)
 int main()
 {
     // COM-Port-Nummer: hier zur Demo fest verdrahtet (statt cin >> port_nr)
-    string port_nr = "2";   // Beispiel: Empfänger auf COM2
-    cout << "COM Port Nummer (Empfaenger): " << port_nr << endl;
+    string portNr = "2";;   // Beispiel: Empfänger auf COM2
+    //cin >> portNr;
+    cout << "COM Port Nummer (Empfaenger): " << portNr << endl;
 
     // "COM" + Nummer ergibt den Portnamen (z. B. "COM2")
-    string serieller_port("COM");
-    serieller_port += port_nr;
+    string port = "COM" + portNr;
 
-    Serial* com = new Serial((string)serieller_port, 9600, 8, ONESTOPBIT, NOPARITY);
+    Serial com(port, 9600, 8, ONESTOPBIT, NOPARITY);
 
-    if (!com->open()) {
+    if (!com.open()) {
         cout << "Schnittstelle Empfaenger konnte NICHT geoeffnet werden. Programmabbruch!" << endl;
         return -1;
     }
@@ -54,37 +54,37 @@ int main()
     // Signalisiere mit DTR=true, dass der Empfänger bereit ist.
     // (HHD setzt DTR oft automatisch auf true; hier dennoch explizit.)
     cout << "Stelle DTR auf true, um Empfangsbereitschaft zu signalisieren." << endl;
-    com->setDTR(true);
+    com.setDTR(true);
 
     // --- Lese-Beispiele (BLOCKIEREND) ---------------------------------
     // 1) Ein einzelnes Zeichen lesen (als int). read() wartet, bis 1 Byte da ist.
-    int val = com->read();
+    int val = com.read();
     cout << "Lese ein Zeichen (Integer-Wert): " << val << endl; // z. B. 65 für 'A'
 
     // 2) Mehrere Einzel-Reads – jede read()-Anweisung blockiert, bis ein Byte ankommt.
-    int v1 = com->read();
+    int v1 = com.read();
     cout << "Lese ein Zeichen (als Integer): " << v1 << endl;
 
-    int v2 = com->read();
+    int v2 = com.read();
     cout << "Lese ein Zeichen (als char):    " << (char)v2 << endl;
 
-    int v3 = com->read();
+    int v3 = com.read();
     cout << "Lese ein Zeichen (als char):    " << (char)v3 << endl;
 
     // 3) Eine komplette Zeile lesen – readLine() kehrt erst mit '\n' zurück.
     cout << "Warte auf eine komplette Zeile (endet mit LF =\\n)..." << endl;
-    string zeile = com->readLine();
+    string zeile = com.readLine();
     cout << "Empfangene Zeile: \"" << zeile << "\"" << endl;
 
     // 4) Puffer-Lese-Beispiel: Liest mindestens 1 Byte und schnappt dann alles,
     //    was sofort verfügbar ist (bis zur angegebenen Größe).
     char buffer[6] = { 0 };
-    int gelesen = com->read(buffer, 5); //Alternativ: com->read(buffer, (int)sizeof(buffer) - 1); Platz für 0-Terminator lassen
+    int gelesen = com.read(buffer, 5); //Alternativ: com->read(buffer, (int)sizeof(buffer) - 1); Platz für 0-Terminator lassen
     buffer[gelesen] = '\0';
     cout << "Wie viele Zeichen wurden gelesen? --> " << gelesen << endl;
     cout << "Was wurde gelesen: \"" << buffer << "\"" << endl;
     // -----------------------------------------------------------------------
 
-    com->close();
+    com.close();
     return 0;
 }
